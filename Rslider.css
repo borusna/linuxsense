@@ -1,0 +1,23 @@
+.red-slider slider {
+    background: red;
+}
+
+.red-slider trough highlight {
+    background: red;
+}
+
+.green-slider trough highlight {
+    background: green;
+}
+
+.green-slider slider {
+    background: green;
+}
+
+.blue-slider trough highlight {
+    background: blue;
+}
+
+.blue-slider slider {
+    background: blue;
+}
