@@ -1,5 +1,5 @@
 # linuxsense
-rgb for phn16s-71 and similar devices
+rgb for phn16s-71 and similar devices, on arch-based distros
 
 ## build
 ```bash 
