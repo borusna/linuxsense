@@ -1,10 +1,36 @@
 #include <gtk/gtk.h>
 #include <ini.h>
 #include <cstdio>
+#include <vector>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/hidraw.h>
 #include "config.h"
+
+#define RGB_FEATURE_ID 0xa4
+#define KEYBOARD_RGB_ID 0x21
+#define RGB_EFFECT_STATIC 0x02
 
 static GtkCssProvider *provider = gtk_css_provider_new();
 
+bool setKeyboardStaticColor(int fd, int r, int g, int b, int brightness = 100, int zone = 0x0f) { // TODO: add brightness slider to GUI
+    std::vector<uint8_t> data = {
+        RGB_FEATURE_ID,
+        KEYBOARD_RGB_ID,
+        RGB_EFFECT_STATIC,
+        static_cast<uint8_t>(brightness),
+        0x00, // speed
+        0x00, // direction
+        static_cast<uint8_t>(r),
+        static_cast<uint8_t>(g),
+        static_cast<uint8_t>(b),
+        static_cast<uint8_t>(zone),
+        0x00
+    };
+
+    return ioctl(fd, HIDIOCSFEATURE(data.size()), data.data()) >= 0;
+}
 
 void drawColor(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer data) {
     Config *cfg = static_cast<Config*>(data);
@@ -18,7 +44,7 @@ void drawColor(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointe
 
     cairo_rectangle(cr, 0, 0, width, height);
     cairo_fill(cr);
-}
+}   
 
 void onSliderChanged(GtkRange *range, gpointer data) {
     SliderData *sd = static_cast<SliderData*>(data);
@@ -32,6 +58,17 @@ void onSliderChanged(GtkRange *range, gpointer data) {
         sd->cfg->b = value;
 
     gtk_widget_queue_draw(sd->panel);
+
+    if (sd->cfg->hid_fd >= 0) {
+        setKeyboardStaticColor(
+            sd->cfg->hid_fd,
+            sd->cfg->r,
+            sd->cfg->g,
+            sd->cfg->b,
+            100,
+            0x0f
+        );
+    }
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
@@ -110,6 +147,11 @@ static void activate(GtkApplication *app, gpointer user_data) {
 int main(int argc, char **argv) {
     Config cfg;
     load_config("config.ini", cfg);
+    cfg.hid_fd = open("/dev/hidraw2", O_RDWR | O_NONBLOCK);
+
+    if (cfg.hid_fd < 0) {
+        std::perror("Failed to open hidraw device");
+    }
 
     std::printf("KeyboardRGB: %d, %d, %d\n", cfg.r, cfg.g, cfg.b);
 
@@ -124,6 +166,10 @@ int main(int argc, char **argv) {
 
     g_object_unref(provider);
     g_object_unref(app);
+
+    if (cfg.hid_fd >= 0) {
+        close(cfg.hid_fd);
+    }
 
     return status;
 }
